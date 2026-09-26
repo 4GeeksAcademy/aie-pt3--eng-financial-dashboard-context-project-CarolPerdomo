@@ -1,4 +1,7 @@
-import type { OperationType } from "../src/lib/financial-types";
+import type {
+  Category,
+  OperationType,
+} from "../src/lib/financial-types";
 
 export interface DateRangeFilter {
   /** Inclusive lower date bound; pass an ISO date in YYYY-MM-DD format. */
@@ -6,6 +9,14 @@ export interface DateRangeFilter {
 
   /** Inclusive upper date bound; pass an ISO date in YYYY-MM-DD format. */
   end_date?: string;
+}
+
+export interface MetricsParams extends DateRangeFilter {
+  /** Category filter; valid values are suppliers, sales, operational, administrative, or others. */
+  category?: Category;
+
+  /** Operation filter; valid values are "income" or "outcome". */
+  operation_type?: OperationType;
 }
 
 export interface AlertsParams extends DateRangeFilter {
