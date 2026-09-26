@@ -1,7 +1,10 @@
 import type {
+  BusinessType,
   Category,
   OperationType,
 } from "../src/lib/financial-types";
+
+export type GroupBy = "day" | "week" | "month";
 
 export interface DateRangeFilter {
   /** Inclusive lower date bound; pass an ISO date in YYYY-MM-DD format. */
@@ -25,6 +28,12 @@ export interface AlertsParams extends DateRangeFilter {
    * are numbers greater than or equal to 0. The API default is 0.3 (30%).
    */
   threshold?: number;
+
+  /** Alert aggregation period; valid values are "day", "week", or "month". The API default is "month". */
+  group_by?: GroupBy;
+
+  /** Business segment filter; valid values are "B2B" or "B2C". Omit for both segments. */
+  business_type?: BusinessType;
 }
 
 export interface TopCategoriesParams extends DateRangeFilter {
@@ -39,4 +48,7 @@ export interface TopCategoriesParams extends DateRangeFilter {
    * The API default is 5.
    */
   limit?: number;
+
+  /** Business segment filter; valid values are "B2B" or "B2C". Omit for both segments. */
+  business_type?: BusinessType;
 }

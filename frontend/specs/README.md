@@ -37,6 +37,12 @@ válidos para FastAPI (respuesta de validación `422`). `business_type` no es un
 parámetro de `GET /api/metrics`, aunque cada movimiento sí incluye ese campo en
 la respuesta.
 
+**Comportamiento con una sola fecha:** si solo hay `start_date`, omitir
+`end_date` y pedir desde esa fecha hasta el final de los datos disponibles; si
+solo hay `end_date`, omitir `start_date` y pedir desde el comienzo hasta esa
+fecha. Con ambos inputs vacíos, enviar ningún filtro de fecha. Las fechas son
+inclusivas; no completar el extremo omitido con la fecha de hoy.
+
 ## Respuesta HTTP compartida
 
 La respuesta `200` es directamente un array `FinancialMovement[]`, sin objeto
@@ -55,6 +61,14 @@ El tipo compartido está declarado en
 movimiento son requeridos. El backend genera datos mock para doce meses
 relativos a la fecha actual; no prometas que el periodo sea 2024 ni fijes en UI
 una cantidad de movimientos o un año que la API no devuelve.
+
+**Trazabilidad verificada el 2026-09-26:** `/docs` publica el `200` de
+`GET /api/metrics` como array cuyo item referencia `FinancialMovement`. El
+esquema en vivo declara exactamente los cinco campos de la tabla y los enum
+indicados; no hay campos `profit`, `profitPercent` ni `month` en ese response.
+`MetricsResponse` en [response-types.ts](./response-types.ts) nombra el mismo
+array. `KPIMetrics` y `MonthlyDataPoint` son modelos derivados locales, no
+interfaces del response OpenAPI.
 
 `KPIMetrics` y `MonthlyDataPoint` también están en `financial-types.ts`, pero
 **no son respuestas HTTP**: son modelos derivados por `financial-utils.ts`.
@@ -162,8 +176,59 @@ vacía, no el valor del porcentaje, para determinar ausencia de puntos.
   respuesta vacía `200` puede producir KPI cero y gráficos sin puntos; un error
   nunca debe presentarse como resultado vacío.
 - Los parámetros `threshold`/`AlertsParams` y `TopCategoriesParams` no
-  participan en estas tres funcionalidades; pertenecen a endpoints/paneles
-  distintos y no deben añadirse a `GET /api/metrics`.
+  pertenecen a endpoints/paneles distintos y no deben añadirse a
+  `GET /api/metrics`. Sus contratos para la tabla de anomalías y los paneles
+  B2B/B2C están al final de esta guía.
+
+## Contratos auxiliares de Fase 2
+
+Estos endpoints no son necesarios para las tres funcionalidades principales de
+KPI y gráficos; se documentan aquí porque la spec de componentes incluye una
+tabla de anomalías y dos paneles top-categories. Sus nombres de parámetros y
+schemas se verificaron en `/docs` y `/openapi.json` el 2026-09-26.
+
+### Tabla de anomalías: `GET /api/metrics/alerts`
+
+La petición usa `AlertsParams`, que extiende `DateRangeFilter`:
+
+| Parámetro | Tipo | Valores/restricción | Default |
+| --- | --- | --- | --- |
+| `start_date`, `end_date` | `string` | `YYYY-MM-DD`, límites inclusivos; cada uno opcional. | Omitido: extremo abierto. |
+| `threshold` | `number` | Mayor o igual que `0`; es un ratio relativo. | `0.3` (30%). |
+| `group_by` | `GroupBy` | `day`, `week`, `month`. | `month`. |
+| `business_type` | `BusinessType` | `B2B` o `B2C`. | Omitido: ambos segmentos. |
+
+`200` responde `MetricsAlertsResponse` (`MetricsAlert[]`), cuyos campos
+requeridos y exactos son `period: string`, `outcome_total: number`,
+`baseline_average: number` e `increase_ratio: number`. No se renombra
+`increase_ratio` a “severity” ni a “percentage” en el contrato. La tabla puede
+presentarlo multiplicado por 100 con símbolo `%`.
+
+### Paneles top-5: `GET /api/metrics/categories/top`
+
+Ambos paneles usan `TopCategoriesParams`, que extiende `DateRangeFilter`:
+
+| Parámetro | Tipo | Valores/restricción | Default |
+| --- | --- | --- | --- |
+| `start_date`, `end_date` | `string` | `YYYY-MM-DD`, límites inclusivos; cada uno opcional. | Omitido: extremo abierto. |
+| `operation_type` | `OperationType` | `income` o `outcome`. | `outcome`. |
+| `limit` | `number` | Entero entre `1` y `20`, ambos incluidos. | `5`. |
+| `business_type` | `BusinessType` | `B2B` o `B2C`. | Omitido: ambos segmentos. |
+
+`200` responde `TopCategoriesResponse` (`TopCategoryItem[]`), con campos
+requeridos exactos `category: Category`, `operation_type: OperationType` y
+`total_amount: number`. El panel B2B envía `business_type=B2B`; el B2C envía
+`business_type=B2C`. Para los paneles top-5, ambos fijan
+`operation_type=outcome` y `limit=5`; si el array contiene entre uno y cuatro
+elementos, renderizan solo los recibidos, sin filas inventadas. Un array vacío
+es un estado sin resultados, no un error.
+
+Las interfaces de respuesta API están en
+[response-types.ts](./response-types.ts). `FinancialMovement` se reutiliza de
+`src/lib/financial-types.ts`; `MetricsAlert` y `TopCategoryItem` reflejan los
+schemas homónimos de OpenAPI. Los endpoints B2B/B2C de movimientos no son la
+fuente de los paneles top-categories: el filtro del endpoint de categorías es
+`business_type`.
 
 ## Referencias
 
